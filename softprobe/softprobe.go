@@ -159,6 +159,12 @@ func (s *SoftprobeSession) ClearRules() error {
 	return s.syncRules()
 }
 
+// SetPolicy replaces the session's external HTTP policy (e.g. strict vs allow).
+func (s *SoftprobeSession) SetPolicy(policyJSON []byte) error {
+	_, err := s.client.SetPolicy(s.id, policyJSON)
+	return err
+}
+
 // Close ends the session.
 func (s *SoftprobeSession) Close() error {
 	_, err := s.client.CloseSession(s.id)

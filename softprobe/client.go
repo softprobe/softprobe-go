@@ -28,7 +28,7 @@ type Transport interface {
 }
 
 // Client is the thin control-plane client. It speaks only to /v1/sessions,
-// /load-case, /rules, and /close; proxy OTLP lives elsewhere.
+// /load-case, /rules, /policy, and /close; proxy OTLP lives elsewhere.
 type Client struct {
 	baseURL   string
 	transport Transport
@@ -78,6 +78,11 @@ func (c *Client) LoadCase(sessionID string, caseJSON []byte) (*SessionCreateResp
 // UpdateRules posts the given rules document to /v1/sessions/{id}/rules.
 func (c *Client) UpdateRules(sessionID string, rulesJSON []byte) (*SessionCreateResponse, error) {
 	return c.postJSON("/v1/sessions/"+sessionID+"/rules", rulesJSON)
+}
+
+// SetPolicy posts the given policy document to /v1/sessions/{id}/policy.
+func (c *Client) SetPolicy(sessionID string, policyJSON []byte) (*SessionCreateResponse, error) {
+	return c.postJSON("/v1/sessions/"+sessionID+"/policy", policyJSON)
 }
 
 // CloseSession posts to /v1/sessions/{id}/close.

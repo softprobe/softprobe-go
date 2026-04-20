@@ -162,6 +162,29 @@ func TestLoadCaseFromFilePostsAndEnablesFindInCase(t *testing.T) {
 	}
 }
 
+func TestSetPolicyPostsToSessionPolicy(t *testing.T) {
+	fx := newFixture()
+	sp := newSoftprobe(fx)
+	session, err := sp.StartSession("replay")
+	if err != nil {
+		t.Fatalf("StartSession: %v", err)
+	}
+	policy := []byte(`{"externalHttp":"strict"}`)
+	if err := session.SetPolicy(policy); err != nil {
+		t.Fatalf("SetPolicy: %v", err)
+	}
+	if n := len(fx.transport.calls); n != 2 {
+		t.Fatalf("calls = %d, want 2 (create + policy)", n)
+	}
+	policyCall := fx.transport.calls[1]
+	if policyCall.method != http.MethodPost || !strings.HasSuffix(policyCall.path, "/policy") {
+		t.Fatalf("policy call = %+v", policyCall)
+	}
+	if policyCall.body != string(policy) {
+		t.Fatalf("policy body = %q", policyCall.body)
+	}
+}
+
 func TestFindInCaseReturnsCapturedResponseForSingleMatch(t *testing.T) {
 	fx := newFixture()
 	sp := newSoftprobe(fx)
