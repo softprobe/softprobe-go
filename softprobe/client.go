@@ -21,6 +21,37 @@ func (e *RuntimeError) Error() string {
 	return fmt.Sprintf("softprobe runtime error: status=%d body=%s", e.StatusCode, e.Body)
 }
 
+// UnreachableError is returned when the transport layer fails before an HTTP
+// response is available (connection refused, DNS failure, timeout, ...).
+// Mirrors SoftprobeRuntimeUnreachableError in the other SDKs.
+type UnreachableError struct{ Cause error }
+
+func (e *UnreachableError) Error() string {
+	return fmt.Sprintf("softprobe runtime is unreachable: %v", e.Cause)
+}
+
+func (e *UnreachableError) Unwrap() error { return e.Cause }
+
+// UnknownSessionError is returned when the runtime replies with the stable
+// `{"error":{"code":"unknown_session", ...}}` envelope. It embeds RuntimeError
+// so callers that only care about the HTTP status can still match via
+// errors.As on *RuntimeError.
+type UnknownSessionError struct{ RuntimeError }
+
+func (e *UnknownSessionError) Error() string {
+	return fmt.Sprintf("softprobe unknown session: status=%d body=%s", e.StatusCode, e.Body)
+}
+
+// As lets `errors.As(err, &*RuntimeError)` recover the underlying HTTP
+// fields, which Go's default embedded-struct handling does not expose.
+func (e *UnknownSessionError) As(target any) bool {
+	if t, ok := target.(**RuntimeError); ok {
+		*t = &e.RuntimeError
+		return true
+	}
+	return false
+}
+
 // Transport is the minimal HTTP seam the Client uses. It lets tests inject
 // an in-process fake without standing up a real HTTP server.
 type Transport interface {
@@ -85,6 +116,12 @@ func (c *Client) SetPolicy(sessionID string, policyJSON []byte) (*SessionCreateR
 	return c.postJSON("/v1/sessions/"+sessionID+"/policy", policyJSON)
 }
 
+// SetAuthFixtures posts the given fixtures document to
+// /v1/sessions/{id}/fixtures/auth.
+func (c *Client) SetAuthFixtures(sessionID string, fixturesJSON []byte) (*SessionCreateResponse, error) {
+	return c.postJSON("/v1/sessions/"+sessionID+"/fixtures/auth", fixturesJSON)
+}
+
 // CloseSession posts to /v1/sessions/{id}/close.
 func (c *Client) CloseSession(sessionID string) (*SessionCreateResponse, error) {
 	return c.postJSON("/v1/sessions/"+sessionID+"/close", []byte("{}"))
@@ -99,7 +136,7 @@ func (c *Client) postJSON(path string, body []byte) (*SessionCreateResponse, err
 
 	resp, err := c.transport.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, &UnreachableError{Cause: err}
 	}
 	defer resp.Body.Close()
 
@@ -109,7 +146,7 @@ func (c *Client) postJSON(path string, body []byte) (*SessionCreateResponse, err
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, &RuntimeError{StatusCode: resp.StatusCode, Body: string(respBody)}
+		return nil, classifyRuntimeError(resp.StatusCode, string(respBody))
 	}
 
 	if len(bytes.TrimSpace(respBody)) == 0 {
@@ -121,4 +158,21 @@ func (c *Client) postJSON(path string, body []byte) (*SessionCreateResponse, err
 		return nil, fmt.Errorf("decode control response: %w", err)
 	}
 	return &out, nil
+}
+
+// classifyRuntimeError distinguishes the stable unknown_session envelope from
+// every other non-2xx response so callers can `errors.As` to the typed
+// UnknownSessionError without parsing messages.
+func classifyRuntimeError(status int, body string) error {
+	var parsed struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(body), &parsed); err == nil {
+		if parsed.Error.Code == "unknown_session" {
+			return &UnknownSessionError{RuntimeError: RuntimeError{StatusCode: status, Body: body}}
+		}
+	}
+	return &RuntimeError{StatusCode: status, Body: body}
 }
