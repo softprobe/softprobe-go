@@ -44,6 +44,15 @@ func (e *CaseLookupAmbiguityError) Error() string { return e.Message }
 type Options struct {
 	BaseURL   string
 	Transport Transport
+	// APIToken is sent as `Authorization: Bearer <APIToken>` on every runtime
+	// call. When empty, falls back to the SOFTPROBE_API_TOKEN environment
+	// variable. Whitespace-only values are treated as "no token" — matching
+	// the runtime's withOptionalBearerAuth contract.
+	APIToken string
+	// APITokenSet lets callers pass an empty APIToken while still overriding
+	// the SOFTPROBE_API_TOKEN env var. It's useful in tests that want to
+	// explicitly disable auth headers.
+	APITokenSet bool
 }
 
 // Softprobe is the ergonomic SDK facade, mirroring the TypeScript,
@@ -66,6 +75,9 @@ func New(opts Options) *Softprobe {
 	var clientOpts []ClientOption
 	if opts.Transport != nil {
 		clientOpts = append(clientOpts, WithTransport(opts.Transport))
+	}
+	if opts.APIToken != "" || opts.APITokenSet {
+		clientOpts = append(clientOpts, WithAPIToken(opts.APIToken))
 	}
 	return &Softprobe{client: NewClient(baseURL, clientOpts...)}
 }

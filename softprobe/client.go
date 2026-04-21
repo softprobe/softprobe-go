@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -63,6 +65,16 @@ type Transport interface {
 type Client struct {
 	baseURL   string
 	transport Transport
+	// apiToken is sent as `Authorization: Bearer <token>` on every request when
+	// non-empty. When this struct field is the zero string, we fall back to
+	// the SOFTPROBE_API_TOKEN environment variable at request time so tests
+	// using t.Setenv work without having to re-construct the client.
+	apiToken apiTokenSource
+}
+
+type apiTokenSource struct {
+	explicit string
+	hasValue bool
 }
 
 // ClientOption configures a Client.
@@ -71,6 +83,14 @@ type ClientOption func(*Client)
 // WithTransport injects a custom Transport (e.g. *http.Client or a test fake).
 func WithTransport(t Transport) ClientOption {
 	return func(c *Client) { c.transport = t }
+}
+
+// WithAPIToken configures the bearer token sent on every runtime call. An
+// empty string here still counts as "explicitly configured" and overrides the
+// SOFTPROBE_API_TOKEN env var; pass the option only when the caller wants to
+// set an explicit value.
+func WithAPIToken(token string) ClientOption {
+	return func(c *Client) { c.apiToken = apiTokenSource{explicit: token, hasValue: true} }
 }
 
 // NewClient constructs a Client bound to the given runtime URL.
@@ -133,6 +153,9 @@ func (c *Client) postJSON(path string, body []byte) (*SessionCreateResponse, err
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if token := c.resolveBearerToken(); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 
 	resp, err := c.transport.Do(req)
 	if err != nil {
@@ -158,6 +181,20 @@ func (c *Client) postJSON(path string, body []byte) (*SessionCreateResponse, err
 		return nil, fmt.Errorf("decode control response: %w", err)
 	}
 	return &out, nil
+}
+
+// resolveBearerToken returns the effective bearer token for this client.
+// The explicit WithAPIToken option wins (even when empty — that's an
+// intentional "disable env fallback" signal). Otherwise we read
+// SOFTPROBE_API_TOKEN. Whitespace-only values collapse to the empty string.
+func (c *Client) resolveBearerToken() string {
+	var candidate string
+	if c.apiToken.hasValue {
+		candidate = c.apiToken.explicit
+	} else {
+		candidate = os.Getenv("SOFTPROBE_API_TOKEN")
+	}
+	return strings.TrimSpace(candidate)
 }
 
 // classifyRuntimeError distinguishes the stable unknown_session envelope from
