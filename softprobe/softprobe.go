@@ -9,7 +9,7 @@ import (
 
 // DefaultBaseURL is used when no base URL is configured and the
 // SOFTPROBE_RUNTIME_URL env var is unset.
-const DefaultBaseURL = "http://127.0.0.1:8080"
+const DefaultBaseURL = "https://runtime.softprobe.dev"
 
 // CaseLoadError is returned when a case document cannot be loaded (file read
 // failure, JSON parse failure, or a non-typed runtime failure while pushing
