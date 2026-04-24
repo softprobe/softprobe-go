@@ -4,28 +4,15 @@ Go SDK for the **Softprobe Hybrid** platform. It talks HTTP to
 `softprobe-runtime` and gives test authors an ergonomic `Softprobe` /
 `SoftprobeSession` pair that mirrors the TypeScript, Python, and Java SDKs.
 
-## Status
+## Install
 
-This module is **not yet released** at a stable public import path. The
-`go.mod` module name is `softprobe-go` (used via `replace` directives inside
-this monorepo), and no CI workflow publishes a versioned module yet. The
-`go get github.com/softprobe/softprobe-go@v0.5.0` command on the docs site
-refers to a **planned** release and is not wired to this repository today.
-
-Consume this module from source, typically via a `replace` directive:
-
-```go
-// e2e/go.mod (example)
-require softprobe-go v0.0.0
-replace softprobe-go => ../softprobe-go
+```bash
+go get github.com/softprobe/softprobe-go@v0.5.0
 ```
-
-The in-repo harnesses under [`e2e/go/`](../e2e/go/) already do this.
 
 ## Build and test
 
 ```bash
-cd softprobe-go
 go test ./...
 ```
 
@@ -35,7 +22,7 @@ go test ./...
 package main
 
 import (
-    "softprobe-go/softprobe"
+    "github.com/softprobe/softprobe-go/softprobe"
 )
 
 func main() {
@@ -101,4 +88,4 @@ not in this package. This SDK only speaks the JSON control API over HTTP.
 
 ## License
 
-Apache-2.0. See [`LICENSE`](./LICENSE) and the monorepo [`LICENSING.md`](../LICENSING.md) for the full dual-license map (server components are under the Softprobe Source License 1.0).
+Apache-2.0. See [`LICENSE`](./LICENSE).

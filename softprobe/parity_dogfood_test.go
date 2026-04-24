@@ -2,6 +2,7 @@ package softprobe
 
 import (
 	"net/http"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -22,6 +23,11 @@ func goldenCasePathDogfood(t *testing.T) string {
 }
 
 func TestParityDogfoodFullFacade(t *testing.T) {
+	casePath := goldenCasePathDogfood(t)
+	if _, err := os.Stat(casePath); err != nil {
+		t.Skipf("monorepo case fixture unavailable in standalone repo: %v", err)
+	}
+
 	transport := &recordingTransport{sessionID: "dogfood-session"}
 	sp := New(Options{BaseURL: "http://fake-runtime.test", Transport: transport})
 
@@ -33,7 +39,7 @@ func TestParityDogfoodFullFacade(t *testing.T) {
 		t.Fatalf("session.ID() = %q, want dogfood-session", session.ID())
 	}
 
-	if err := session.LoadCaseFromFile(goldenCasePathDogfood(t)); err != nil {
+	if err := session.LoadCaseFromFile(casePath); err != nil {
 		t.Fatalf("LoadCaseFromFile: %v", err)
 	}
 
